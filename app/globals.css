@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --radius: 12px;
+}
+
+* { box-sizing: border-box; }
+
+body { 
+  font-feature-settings: "kern" 1, "liga" 1, "calt" 1; 
+}
+
+.card {
+  @apply bg-white rounded-2xl shadow-soft border border-gray-100;
+}
+
+.btn-primary {
+  @apply inline-flex items-center justify-center rounded-xl bg-gray-900 text-white px-4 py-2 font-medium hover:bg-black transition-colors disabled:opacity-60 disabled:cursor-not-allowed;
+}
+
+.input {
+  @apply w-full rounded-xl border border-gray-200 bg-white px-4 py-2 outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-300;
+}
+
+
+
