@@ -9,7 +9,7 @@ type StyleOption = '书法' | '极简' | '潮流' | '梦幻' | '数码感'
  * 检测输入名字所属语言
  * 返回值为 8 种语言之一，或 '不支持此种语言'
  */
-export function detectLanguageFromName(name: string): Language | '不支持此种语言' {
+function detectLanguageFromName(name: string): Language | '不支持此种语言' {
   if (!name || name.trim().length === 0) return '不支持此种语言'
 
   // 尝试使用 Unicode 属性脚本判断（更精确）
@@ -43,7 +43,7 @@ export function detectLanguageFromName(name: string): Language | '不支持此�
   return '不支持此种语言'
 }
 
-export default function HomePage() {
+export default function Page() {
   const [name, setName] = useState('')
   const [style, setStyle] = useState<StyleOption>('极简')
   const [loading, setLoading] = useState(false)

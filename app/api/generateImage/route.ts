@@ -78,9 +78,9 @@ async function generateImageFromPrompt(prompt: string): Promise<string> {
       const imageRes = await fetch(imageUrl)
       const arrayBuffer = await imageRes.arrayBuffer()
       const base64 = Buffer.from(arrayBuffer).toString('base64')
-      
       return `data:image/png;base64,${base64}`;
     }
+    return ''
   } catch (error: any) {
     console.error('qwen-image API Error:', error)
     return `抱歉，生成服务暂时不可用，请稍后再试。`
