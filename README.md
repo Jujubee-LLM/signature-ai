@@ -15,6 +15,11 @@ pnpm i # or npm i / yarn
 - `QWEN_IMAGE_END_POINT=...`
 - `REDIS_URL=redis://127.0.0.1:6379`
 - `ADMIN_API_TOKEN=replace-with-a-strong-secret`
+- Optional rate limits:
+  - `RATE_LIMIT_PER_MINUTE=20`
+  - `RATE_LIMIT_PER_DAY=200`
+- Optional image proxy host allowlist (comma-separated, supports `*.domain.com`):
+  - `IMAGE_PROXY_ALLOWED_HOSTS=*.aliyuncs.com,dashscope.aliyuncs.com`
 - Optional key namespace:
   - `REDIS_KEY_PREFIX=signify`
 - Optional redeem-code seed (comma-separated, one code can be used once):

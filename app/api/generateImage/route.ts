@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { consumeGenerationCredit, refundGenerationCredit } from '@/lib/quotaStore'
+import { checkRateLimit } from '@/lib/rateLimit'
 import { applyUserCookie, getOrCreateUserSession } from '@/lib/userSession'
 
 export const runtime = 'nodejs'
@@ -17,6 +18,12 @@ export async function POST(req: NextRequest) {
   let consumedFrom: 'free' | 'paid' | undefined
 
   try {
+    const rateLimitResponse = await checkRateLimit(req, session.userId)
+    if (rateLimitResponse) {
+      applyUserCookie(rateLimitResponse, session)
+      return rateLimitResponse
+    }
+
     if (!QWEN_API_KEY) {
       const response = NextResponse.json(
         { error: '生成服务未配置（缺少 QWEN_API_KEY）' },

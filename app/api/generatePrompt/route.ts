@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getQuotaSnapshot } from '@/lib/quotaStore'
+import { checkRateLimit } from '@/lib/rateLimit'
 import { applyUserCookie, getOrCreateUserSession } from '@/lib/userSession'
 
 type Body = {
@@ -15,6 +16,12 @@ export async function POST(req: NextRequest) {
   const session = getOrCreateUserSession(req)
 
   try {
+    const rateLimitResponse = await checkRateLimit(req, session.userId)
+    if (rateLimitResponse) {
+      applyUserCookie(rateLimitResponse, session)
+      return rateLimitResponse
+    }
+
     const quota = await getQuotaSnapshot(session.userId)
     if (quota.totalRemaining <= 0) {
       const response = NextResponse.json(

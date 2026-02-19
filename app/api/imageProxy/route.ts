@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getImageHostPolicyHint, isAllowedImageHost } from '@/lib/imageHostPolicy'
 
 export const runtime = 'nodejs'
 
@@ -15,6 +16,18 @@ export async function GET(req: NextRequest) {
   const src = (req.nextUrl.searchParams.get('src') || '').trim()
   if (!src || !isValidHttpUrl(src)) {
     return NextResponse.json({ error: 'Invalid image src' }, { status: 400 })
+  }
+
+  const srcUrl = new URL(src)
+  if (!isAllowedImageHost(srcUrl.hostname)) {
+    return NextResponse.json(
+      {
+        error: 'Image host is not allowed',
+        host: srcUrl.hostname,
+        allowed: getImageHostPolicyHint(),
+      },
+      { status: 403 }
+    )
   }
 
   try {
