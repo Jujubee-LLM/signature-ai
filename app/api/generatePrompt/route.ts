@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getQuotaSnapshot } from '@/lib/quotaStore'
+import { applyUserCookie, getOrCreateUserSession } from '@/lib/userSession'
 
 type Body = {
   name?: string
@@ -10,21 +12,43 @@ const QWEN_API_KEY = process.env.QWEN_API_KEY || ''
 const endpoint = process.env.QWEN_TURBO_END_POINT || ''
 
 export async function POST(req: NextRequest) {
+  const session = getOrCreateUserSession(req)
+
   try {
+    const quota = await getQuotaSnapshot(session.userId)
+    if (quota.totalRemaining <= 0) {
+      const response = NextResponse.json(
+        {
+          error: '已经超过免费额度，请联系管理员充值并输入兑换码继续使用。',
+          quotaExceeded: true,
+          quota,
+        },
+        { status: 402 }
+      )
+      applyUserCookie(response, session)
+      return response
+    }
+
     const body = (await req.json()) as Body
     const name = (body.name || '').trim()
     const language = (body.language || '不支持此种语言').trim()
     const style = (body.style || '极简').trim()
 
     if (!name) {
-      return NextResponse.json({ error: 'Missing name' }, { status: 400 })
+      const response = NextResponse.json({ error: 'Missing name' }, { status: 400 })
+      applyUserCookie(response, session)
+      return response
     }
 
     const prompt = await generatePromptWithQwen({ name, language, style })
     const obj = JSON.parse(prompt)
-    return NextResponse.json(obj)
+    const response = NextResponse.json(obj)
+    applyUserCookie(response, session)
+    return response
   } catch (err) {
-    return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
+    const response = NextResponse.json({ error: 'Invalid request' }, { status: 400 })
+    applyUserCookie(response, session)
+    return response
   }
 }
 
@@ -188,4 +212,3 @@ async function generatePromptWithQwen({ name, language, style }: { name: string;
 //     return `Elegant signature logo of the name \"${name}\" in ${styleHint}; balanced composition, crisp vector lines, subtle texture, soft off-white background, gentle studio lighting.`
 //   }
 // }
-

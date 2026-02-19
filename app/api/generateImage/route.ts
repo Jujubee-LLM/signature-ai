@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { consumeGenerationCredit, refundGenerationCredit } from '@/lib/quotaStore'
+import { applyUserCookie, getOrCreateUserSession } from '@/lib/userSession'
 
 export const runtime = 'nodejs'
 
@@ -11,20 +13,59 @@ type Body = {
 }
 
 export async function POST(req: NextRequest) {
+  const session = getOrCreateUserSession(req)
+  let consumedFrom: 'free' | 'paid' | undefined
+
   try {
     if (!QWEN_API_KEY) {
-      return NextResponse.json({ error: 'Server misconfiguration: missing API key' }, { status: 500 })
+      const response = NextResponse.json(
+        { error: '生成服务未配置（缺少 QWEN_API_KEY）' },
+        { status: 400 }
+      )
+      applyUserCookie(response, session)
+      return response
     }
+
+    const consumption = await consumeGenerationCredit(session.userId)
+    if (!consumption.allowed) {
+      const response = NextResponse.json(
+        {
+          error: '已经超过免费额度，请联系管理员充值并输入兑换码继续使用。',
+          quotaExceeded: true,
+          quota: consumption.quota,
+        },
+        { status: 402 }
+      )
+      applyUserCookie(response, session)
+      return response
+    }
+    consumedFrom = consumption.consumedFrom
 
     const body = (await req.json()) as Body
     const prompt = (body.prompt || '').trim()
-    if (!prompt || prompt.startsWith('Text API Error')) return NextResponse.json({ error: 'Missing prompt' }, { status: 400 })
+    if (!prompt || prompt.startsWith('Text API Error')) {
+      if (consumedFrom) {
+        await refundGenerationCredit(session.userId, consumedFrom)
+      }
+      const response = NextResponse.json({ error: 'Missing prompt' }, { status: 400 })
+      applyUserCookie(response, session)
+      return response
+    }
+
     const imageUrl = await generateImageFromPrompt(prompt)
-    return NextResponse.json({ imageUrl })
+    const proxiedImageUrl = `/api/imageProxy?src=${encodeURIComponent(imageUrl)}`
+    const response = NextResponse.json({ imageUrl: proxiedImageUrl, quota: consumption.quota })
+    applyUserCookie(response, session)
+    return response
   } catch (err: any) {
+    if (consumedFrom) {
+      await refundGenerationCredit(session.userId, consumedFrom)
+    }
     console.log('generateImageFromPrompt error', err)
     const message = err?.message || 'Invalid request'
-    return NextResponse.json({ error: message }, { status: 400 })
+    const response = NextResponse.json({ error: message }, { status: 400 })
+    applyUserCookie(response, session)
+    return response
   }
 }
 
@@ -65,6 +106,11 @@ async function generateImageFromPrompt(prompt: string): Promise<string> {
       cache: 'no-store'
     })
 
+    if (!resp.ok) {
+      const respText = await resp.text().catch(() => '<unreadable response body>')
+      throw new Error(`Qwen HTTP Error: ${resp.status} ${resp.statusText} - ${respText}`)
+    }
+
     const text = await resp.text()
     let json: any = null
     try {
@@ -75,15 +121,12 @@ async function generateImageFromPrompt(prompt: string): Promise<string> {
     const imageUrl =
       json?.output?.choices?.[0]?.message?.content?.find((x: any) => !!x.image)?.image;
     if (typeof imageUrl === 'string' && imageUrl.length > 0) {
-      const imageRes = await fetch(imageUrl)
-      const arrayBuffer = await imageRes.arrayBuffer()
-      const base64 = Buffer.from(arrayBuffer).toString('base64')
-      return `data:image/png;base64,${base64}`;
+      return imageUrl
     }
-    return ''
+    throw new Error('Image URL not found in upstream response')
   } catch (error: any) {
     console.error('qwen-image API Error:', error)
-    return `抱歉，生成服务暂时不可用，请稍后再试。`
+    throw new Error('抱歉，生成服务暂时不可用，请稍后再试。')
     //return `API Error: ${error?.message || 'Unknown error'}`
   }
 }
